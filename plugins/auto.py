@@ -601,17 +601,8 @@ def update_default_thumbnail(url):
         return False
 
 # Main function
-async def main():
+async def start(client):
     logger.info("Starting Anime Auto-Downloader")
-    
-    # Initialize Pyrogram client
-    client = Client(
-        "anime_auto_downloader",
-        api_id=API_ID,
-        api_hash=API_HASH,
-        bot_token=BOT_TOKEN
-    )
-    
     # If default thumbnail URL is specified in config
     config = load_config()
     default_thumb_url = config.get('default_thumbnail_url')
