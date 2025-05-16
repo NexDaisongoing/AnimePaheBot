@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Anime Auto-Downloader and Uploader Script
 Automatically downloads anime from AnimePahe and uploads to Telegram channels
@@ -537,4 +538,122 @@ def list_tracked_anime():
             return []
         
         result = []
-     
+        for i, anime in enumerate(config['anime_list']):
+            result.append({
+                'index': i,
+                'title': anime['title'],
+                'session_id': anime['session_id'],
+                'latest_episode': anime['latest_episode']
+            })
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error listing anime: {e}")
+        return []
+
+# Function to update config settings
+def update_config_setting(setting, value):
+    try:
+        config = load_config()
+        
+        if setting in config:
+            config[setting] = value
+            save_config(config)
+            logger.info(f"Updated {setting} to {value}")
+            return True
+        else:
+            logger.error(f"Setting not found: {setting}")
+            return False
+    except Exception as e:
+        logger.error(f"Error updating setting: {e}")
+        return False
+
+# Main loop to periodically check for new episodes
+async def main_loop(client):
+    config = load_config()
+    
+    while True:
+        try:
+            logger.info("Starting check for new episodes...")
+            await check_for_new_episodes(client)
+            
+            # Reload config in case it was updated
+            config = load_config()
+            check_interval = config.get('check_interval', 3600)
+            
+            logger.info(f"Check complete. Sleeping for {check_interval} seconds...")
+            await asyncio.sleep(check_interval)
+        except Exception as e:
+            logger.error(f"Error in main loop: {e}")
+            await asyncio.sleep(300)  # Sleep for 5 minutes on error
+
+# Update default thumbnail (can be called manually)
+def update_default_thumbnail(url):
+    try:
+        response = requests.get(url, stream=True)
+        with open(THUMBNAIL_PATH, 'wb') as thumb_file:
+            for chunk in response.iter_content(1024):
+                thumb_file.write(chunk)
+        logger.info(f"Default thumbnail updated from {url}")
+        return True
+    except Exception as e:
+        logger.error(f"Error updating thumbnail: {e}")
+        return False
+
+# Main function
+async def main():
+    logger.info("Starting Anime Auto-Downloader")
+    
+    # Initialize Pyrogram client
+    client = Client(
+        "anime_auto_downloader",
+        api_id=API_ID,
+        api_hash=API_HASH,
+        bot_token=BOT_TOKEN
+    )
+    
+    # If default thumbnail URL is specified in config
+    config = load_config()
+    default_thumb_url = config.get('default_thumbnail_url')
+    if default_thumb_url and not os.path.exists(THUMBNAIL_PATH):
+        update_default_thumbnail(default_thumb_url)
+    
+    # Print startup information
+    logger.info("Configuration loaded:")
+    logger.info(f"- Tracking {len(config['anime_list'])} anime series")
+    logger.info(f"- Check interval: {config['check_interval']} seconds")
+    logger.info(f"- Target qualities: {', '.join(config['qualities'])}")
+    logger.info(f"- Download limit per run: {config['download_limit']} episodes")
+    
+    await client.start()
+    user = await client.get_me()
+    logger.info(f"Bot started as @{user.username}")
+    
+    try:
+        # Send startup notification
+        await client.send_message(
+            LOG_CHANNEL,
+            f"🤖 Anime Auto-Downloader has started\n"
+            f"Tracking {len(config['anime_list'])} anime series\n"
+            f"Check interval: {config['check_interval'] // 60} minutes"
+        )
+        
+        # Run the main loop
+        await main_loop(client)
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    finally:
+        await client.stop()
+
+# Run the script
+if __name__ == "__main__":
+    # Example of how to add anime to track before starting
+    # Uncomment and modify as needed
+    # add_anime_to_track("Demon Slayer")
+    # add_anime_to_track("Jujutsu Kaisen")
+    
+    # Start the main function
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Bot stopped")
